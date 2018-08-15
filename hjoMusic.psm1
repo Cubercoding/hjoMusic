@@ -7,7 +7,7 @@ function Find-DzrUser {
     The Find-DzrUser cmdlet finds users on the online music streaming service
     Deezer, by using the REST API of the service. It returns objects with the 
     UserID property, amongst others, which can be piped to other Cmdlets (such
-    as Get-DzrUser) to retrieve other data.
+    as Get-DzrPlayList) to retrieve other data.
 
     The Cmdlet can be used through a proxy server, when succesfully
     authenticated. The -Proxy and -ProxyCredential parameters serve this
@@ -133,14 +133,14 @@ function Find-DzrUser {
         do {
             # Output the current page of data
             $Users.data | Select-Object -Property @{name = 'Name'; expression = {$_.name}},
-            @{name = 'UserID'; expression = {$_.id}},
-            @{name = 'Type'; expression = {$_.type}},
-            @{name = 'UriPicture1'; expression = {$_.picture_small}},
-            @{name = 'UriPicture2'; expression = {$_.picture}},
-            @{name = 'UriPicture3'; expression = {$_.picture_medium}},
-            @{name = 'UriPicture4'; expression = {$_.picture_big}},
-            @{name = 'UriPicture5'; expression = {$_.picture_xl}},
-            @{name = 'UriTracklist'; expression = {$_.tracklist}}
+                                                  @{name = 'UserID'; expression = {$_.id}},
+                                                  @{name = 'Type'; expression = {$_.type}},
+                                                  @{name = 'UriPicture1'; expression = {$_.picture_small}},
+                                                  @{name = 'UriPicture2'; expression = {$_.picture}},
+                                                  @{name = 'UriPicture3'; expression = {$_.picture_medium}},
+                                                  @{name = 'UriPicture4'; expression = {$_.picture_big}},
+                                                  @{name = 'UriPicture5'; expression = {$_.picture_xl}},
+                                                  @{name = 'UriTracklist'; expression = {$_.tracklist}}
 
             # Get the following pages of data
             if ($Users.next) {
@@ -165,6 +165,120 @@ function Find-DzrUser {
             Write-Warning "Maximum number of objects reached (300), the result may be incomplete.`nTry a more specific search."
         }
     
+    } # PROCESS
+        
+    END {} # END
+        
+} # Function
+
+function Get-DzrPlaylist {
+    [cmdletbinding(DefaultParameterSetName = 'ByPlaylistIDAndNoProxy')]
+    Param(
+        [Parameter(ParameterSetName = 'ByPlaylistIDAndNoProxy', Position = 0, Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
+        [Parameter(ParameterSetName = 'ByPlaylistIDAndWithProxy', Position = 0, Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
+        [Int64]$PlaylistID,
+
+        [Parameter(ParameterSetName = 'ByUserIDAndNoProxy', Position = 0, Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
+        [Parameter(ParameterSetName = 'ByUserIDAndWithProxy', Position = 0, Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
+        [Int64]$UserID,
+        
+        [Parameter(ParameterSetName = 'ByPlaylistIDAndNoProxy', Position = 1, Mandatory = $false)]
+        [Parameter(ParameterSetName = 'ByPlaylistIDAndWithProxy', Position = 1, Mandatory = $false)]
+        [Parameter(ParameterSetName = 'ByUserIDAndNoProxy', Position = 1, Mandatory = $false)]
+        [Parameter(ParameterSetName = 'ByUserIDAndWithProxy', Position = 1, Mandatory = $false)] 
+        [int16]$Limit = 1000,
+
+        [Parameter(ParameterSetName = 'ByPlaylistIDAndWithProxy', Mandatory = $true)]
+        [Parameter(ParameterSetName = 'ByUserIDAndWithProxy', Mandatory = $true)]
+        [uri]$Proxy,
+        
+        [Parameter(ParameterSetName = 'ByPlaylistIDAndWithProxy')]
+        [Parameter(ParameterSetName = 'ByUserIDAndWithProxy')]
+        [ValidateNotNull()]
+        [System.Management.Automation.PSCredential]
+        [System.Management.Automation.Credential()]
+        [PSCredential]$ProxyCredential = [System.Management.Automation.PSCredential]::Empty
+    ) # Param
+        
+    BEGIN {
+        Write-Verbose ""
+        Write-Verbose "--- Executing Metadata ---"
+        Write-Verbose "User = $($env:userdomain)\$($env:USERNAME)"
+        Write-Verbose "Is Admin = $IsAdmin"
+        Write-Verbose "Computername = $env:COMPUTERNAME"
+        Write-Verbose "Host = $($host.Name)"
+        Write-Verbose "PSVersion = $($PSVersionTable.PSVersion)"
+        Write-Verbose "Runtime = $(Get-Date)"
+        Write-Verbose "--- End Metadata ---"
+        Write-Verbose ""
+    }
+        
+    PROCESS {
+        # Determine URL, either by Playlist- or UserID
+        if (($PSCmdlet.ParameterSetName -eq "ByUserIDAndNoProxy") -or ($PSCmdlet.ParameterSetName -eq "ByUserIDAndWithProxy")) {
+            $URL = "https://api.deezer.com/user/" + $UserID +  "/playlists?limit=" + $Limit   
+        } elseif (($PSCmdlet.ParameterSetName -eq "ByPlaylistIDAndNoProxy") -or ($PSCmdlet.ParameterSetName -eq "ByPlaylistIDAndWithProxy")) {
+            $URL = "https://api.deezer.com/playlist/" + $PlaylistID
+        }
+
+        # Get data, in different proxy situations
+        If (($PSCmdlet.ParameterSetName -eq "ByPlaylistIDAndNoProxy") -or ($PSCmdlet.ParameterSetName -eq "ByUserIDAndNoProxy")) {
+            $Playlists = Invoke-RestMethod -Uri $URL
+        }
+        elseif (($PSCmdlet.ParameterSetName -eq "ByPlaylistIDAndWithProxy" -or ($PSCmdlet.ParameterSetName -eq "ByUserIDAndWithProxy")) -and ($PSBoundParameters.ContainsKey('ProxyCredential') -eq $false)) {
+            $Playlists = Invoke-RestMethod -Uri $URL -Proxy $Proxy -ProxyUseDefaultCredentials
+        }
+        else {
+            $Playlists = Invoke-RestMethod -Uri $URL -Proxy $Proxy -ProxyCredential $ProxyCredential
+        }
+
+        # Output result
+        if (($PSCmdlet.ParameterSetName -eq "ByUserIDAndNoProxy") -or ($PSCmdlet.ParameterSetName -eq "ByUserIDAndWithProxy")) {
+            $Playlists.data | Select-Object @{Name='Title';Expression={$_.title}},
+                                            @{Name='PlaylistID';Expression={$_.id}},
+                                            @{name='Type'; expression = {$_.type}},
+                                            @{name='Creator'; expression = {$_.creator.name}},
+                                            @{name='CreatorID'; expression = {$_.creator.id}},
+                                            @{name='CreationDate'; expression = {$_.creation_date}},
+                                            @{Name='Tracks';Expression={$_.nb_tracks}},
+                                            @{Name='Duration';Expression={"{0:HH:mm:ss}" -f ([datetime][timespan]::fromseconds($_.duration).Ticks)}},
+                                            @{Name='Fans';Expression={$_.fans}},
+                                            @{Name='Rating';Expression={$_.rating}},
+                                            @{Name='Public';Expression={$_.public}},
+                                            @{Name='Collaborative';Expression={$_.collaborative}},
+                                            @{Name='Uri';Expression={$_.link}},
+                                            @{name='UriPicture1'; expression = {$_.picture_small}},
+                                            @{name='UriPicture2'; expression = {$_.picture}},
+                                            @{name='UriPicture3'; expression = {$_.picture_medium}},
+                                            @{name='UriPicture4'; expression = {$_.picture_big}},
+                                            @{name='UriPicture5'; expression = {$_.picture_xl}},
+                                            @{name='UriTracklist'; expression = {$_.tracklist}},
+                                            @{name='Checksum'; expression = {$_.checksum}}
+        } elseif (($PSCmdlet.ParameterSetName -eq "ByPlaylistIDAndNoProxy") -or ($PSCmdlet.ParameterSetName -eq "ByPlaylistIDAndWithProxy")) {
+            $Playlists | Select-Object @{Name='Title';Expression={$_.title}},
+                                       @{Name='PlaylistID';Expression={$_.id}},
+                                       @{name='Type'; expression = {$_.type}},
+                                       @{Name='Description';Expression={$_.description}},
+                                       @{name='Creator'; expression = {$_.creator.name}},
+                                       @{name='CreatorID'; expression = {$_.creator.id}},
+                                       @{name='CreationDate'; expression = {$_.creation_date}},
+                                       @{Name='Tracks';Expression={$_.nb_tracks}},
+                                       @{Name='Duration';Expression={"{0:HH:mm:ss}" -f ([datetime][timespan]::fromseconds($_.duration).Ticks)}},
+                                       @{Name='Fans';Expression={$_.fans}},
+                                       @{Name='Rating';Expression={$_.rating}},
+                                       @{Name='Public';Expression={$_.public}},
+                                       @{Name='Collaborative';Expression={$_.collaborative}},
+                                       @{Name='Uri';Expression={$_.link}},
+                                       @{name='UriPicture1'; expression = {$_.picture_small}},
+                                       @{name='UriPicture2'; expression = {$_.picture}},
+                                       @{name='UriPicture3'; expression = {$_.picture_medium}},
+                                       @{name='UriPicture4'; expression = {$_.picture_big}},
+                                       @{name='UriPicture5'; expression = {$_.picture_xl}},
+                                       @{name='UriTracklist'; expression = {$_.tracklist}},
+                                       @{Name='UriShare';Expression={$_.share}},
+                                       @{name='Checksum'; expression = {$_.checksum}}
+        }
+
     } # PROCESS
         
     END {} # END
