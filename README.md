@@ -1,4 +1,5 @@
 # hjoMusic
 
-Work in progress.
-Powershell module with functions (cmdlets) to get info from online music providers.
+~~work in progress.~~
+Small Powershell module with some functions (cmdlets) to get info from online music providers (Deezer). No longer maintained.
+
